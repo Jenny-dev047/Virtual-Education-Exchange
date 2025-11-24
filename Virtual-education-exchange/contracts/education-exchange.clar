@@ -239,3 +239,68 @@
         (ok true)
     )
 )
+
+;; Update student statistics
+(define-private (update-student-stats (student principal) (hours uint))
+    (let
+        (
+            (profile (unwrap! (map-get? student-profiles { student: student }) err-not-found))
+        )
+        (map-set student-profiles
+            { student: student }
+            (merge profile { 
+                matches-completed: (+ (get matches-completed profile) u1),
+                total-hours: (+ (get total-hours profile) hours)
+            })
+        )
+        (var-set total-hours (+ (var-get total-hours) hours))
+        (ok true)
+    )
+)
+
+;; Check and award achievements
+(define-private (check-and-award-achievements (student principal))
+    (let
+        (
+            (profile (unwrap! (map-get? student-profiles { student: student }) err-not-found))
+            (completed (get matches-completed profile))
+            (hours (get total-hours profile))
+        )
+        (if (>= completed u1)
+            (map-set student-achievements
+                { student: student, achievement-type: "first-exchange" }
+                { earned: true, earned-at: stacks-block-height }
+            )
+            true
+        )
+        (if (>= completed u5)
+            (map-set student-achievements
+                { student: student, achievement-type: "five-exchanges" }
+                { earned: true, earned-at: stacks-block-height }
+            )
+            true
+        )
+        (if (>= completed u10)
+            (map-set student-achievements
+                { student: student, achievement-type: "ten-exchanges" }
+                { earned: true, earned-at: stacks-block-height }
+            )
+            true
+        )
+        (if (>= hours u10)
+            (map-set student-achievements
+                { student: student, achievement-type: "ten-hours" }
+                { earned: true, earned-at: stacks-block-height }
+            )
+            true
+        )
+        (if (>= hours u50)
+            (map-set student-achievements
+                { student: student, achievement-type: "fifty-hours" }
+                { earned: true, earned-at: stacks-block-height }
+            )
+            true
+        )
+        (ok true)
+    )
+)
