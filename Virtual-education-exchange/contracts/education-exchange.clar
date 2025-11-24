@@ -304,3 +304,71 @@
         (ok true)
     )
 )
+
+;; Admin: Toggle program status
+(define-public (toggle-program-status)
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (var-set program-active (not (var-get program-active)))
+        (ok (var-get program-active))
+    )
+)
+
+;; Admin: Set grade level range
+(define-public (set-grade-range (min-grade uint) (max-grade uint))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (< min-grade max-grade) err-invalid-grade)
+        (var-set min-grade-level min-grade)
+        (var-set max-grade-level max-grade)
+        (ok true)
+    )
+)
+
+;; Read-only functions
+(define-read-only (get-student-profile (student principal))
+    (map-get? student-profiles { student: student })
+)
+
+(define-read-only (get-match (match-id uint))
+    (map-get? exchange-matches { match-id: match-id })
+)
+
+(define-read-only (get-feedback (match-id uint) (student principal))
+    (map-get? match-feedback { match-id: match-id, student: student })
+)
+
+(define-read-only (get-achievement (student principal) (achievement-type (string-ascii 50)))
+    (map-get? student-achievements { student: student, achievement-type: achievement-type })
+)
+
+(define-read-only (is-blocked (student principal) (blocked principal))
+    (default-to { blocked: false } (map-get? blocked-students { student: student, blocked: blocked }))
+)
+
+(define-read-only (get-total-students)
+    (ok (var-get student-counter))
+)
+
+(define-read-only (get-total-matches)
+    (ok (var-get match-counter))
+)
+
+(define-read-only (get-total-hours)
+    (ok (var-get total-hours))
+)
+
+(define-read-only (get-program-status)
+    (ok (var-get program-active))
+)
+
+(define-read-only (get-grade-range)
+    (ok { min: (var-get min-grade-level), max: (var-get max-grade-level) })
+)
+
+(define-read-only (is-student-active (student principal))
+    (match (map-get? student-profiles { student: student })
+        profile (ok (get active profile))
+        (ok false)
+    )
+)
