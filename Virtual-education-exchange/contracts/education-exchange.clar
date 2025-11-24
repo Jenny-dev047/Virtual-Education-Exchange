@@ -62,3 +62,72 @@
     { student: principal, blocked: principal }
     { blocked: bool }
 )
+
+;; Register student profile
+;; #[allow(unchecked_data)]
+(define-public (register-student (country (string-ascii 50)) (interests (string-ascii 100)) (grade-level uint))
+    (begin
+        (asserts! (is-none (map-get? student-profiles { student: tx-sender })) err-already-registered)
+        (asserts! (and (>= grade-level (var-get min-grade-level)) (<= grade-level (var-get max-grade-level))) err-invalid-grade)
+        (map-set student-profiles
+            { student: tx-sender }
+            {
+                country: country,
+                interests: interests,
+                grade-level: grade-level,
+                active: true,
+                matches-completed: u0,
+                total-hours: u0,
+                registration-date: stacks-block-height
+            }
+        )
+        (var-set student-counter (+ (var-get student-counter) u1))
+        (ok true)
+    )
+)
+
+;; Update student profile
+;; #[allow(unchecked_data)]
+(define-public (update-profile (country (string-ascii 50)) (interests (string-ascii 100)) (grade-level uint))
+    (let
+        (
+            (profile (unwrap! (map-get? student-profiles { student: tx-sender }) err-not-found))
+        )
+        (asserts! (and (>= grade-level (var-get min-grade-level)) (<= grade-level (var-get max-grade-level))) err-invalid-grade)
+        (map-set student-profiles
+            { student: tx-sender }
+            (merge profile { country: country, interests: interests, grade-level: grade-level })
+        )
+        (ok true)
+    )
+)
+
+;; Deactivate student profile
+(define-public (deactivate-profile)
+    (let
+        (
+            (profile (unwrap! (map-get? student-profiles { student: tx-sender }) err-not-found))
+        )
+        (asserts! (get active profile) err-already-inactive)
+        (map-set student-profiles
+            { student: tx-sender }
+            (merge profile { active: false })
+        )
+        (ok true)
+    )
+)
+
+;; Reactivate student profile
+(define-public (reactivate-profile)
+    (let
+        (
+            (profile (unwrap! (map-get? student-profiles { student: tx-sender }) err-not-found))
+        )
+        (asserts! (not (get active profile)) err-invalid-status)
+        (map-set student-profiles
+            { student: tx-sender }
+            (merge profile { active: true })
+        )
+        (ok true)
+    )
+)
