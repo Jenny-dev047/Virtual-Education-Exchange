@@ -131,3 +131,111 @@
         (ok true)
     )
 )
+
+;; Create exchange match
+;; #[allow(unchecked_data)]
+(define-public (create-match (student-two principal) (topic (string-ascii 100)))
+    (let
+        (
+            (new-id (+ (var-get match-counter) u1))
+            (profile-one (unwrap! (map-get? student-profiles { student: tx-sender }) err-not-found))
+            (profile-two (unwrap! (map-get? student-profiles { student: student-two }) err-not-found))
+        )
+        (asserts! (var-get program-active) err-invalid-status)
+        (asserts! (get active profile-one) err-invalid-match)
+        (asserts! (get active profile-two) err-invalid-match)
+        (asserts! (is-none (map-get? blocked-students { student: tx-sender, blocked: student-two })) err-unauthorized)
+        (map-set exchange-matches
+            { match-id: new-id }
+            {
+                student-one: tx-sender,
+                student-two: student-two,
+                topic: topic,
+                status: "active",
+                created-at: stacks-block-height,
+                completed-at: u0,
+                duration-hours: u0
+            }
+        )
+        (var-set match-counter new-id)
+        (ok new-id)
+    )
+)
+
+;; Complete exchange with duration
+;; #[allow(unchecked_data)]
+(define-public (complete-exchange (match-id uint) (duration-hours uint))
+    (let
+        (
+            (match (unwrap! (map-get? exchange-matches { match-id: match-id }) err-not-found))
+        )
+        (asserts! (> duration-hours u0) err-invalid-duration)
+        (asserts! (or (is-eq tx-sender (get student-one match)) (is-eq tx-sender (get student-two match))) err-invalid-match)
+        (map-set exchange-matches
+            { match-id: match-id }
+            (merge match { status: "completed", completed-at: stacks-block-height, duration-hours: duration-hours })
+        )
+        (try! (update-student-stats (get student-one match) duration-hours))
+        (try! (update-student-stats (get student-two match) duration-hours))
+        (try! (check-and-award-achievements (get student-one match)))
+        (try! (check-and-award-achievements (get student-two match)))
+        (ok true)
+    )
+)
+
+;; Cancel exchange match
+;; #[allow(unchecked_data)]
+(define-public (cancel-match (match-id uint))
+    (let
+        (
+            (match (unwrap! (map-get? exchange-matches { match-id: match-id }) err-not-found))
+        )
+        (asserts! (or (is-eq tx-sender (get student-one match)) (is-eq tx-sender (get student-two match))) err-invalid-match)
+        (map-set exchange-matches
+            { match-id: match-id }
+            (merge match { status: "cancelled" })
+        )
+        (ok true)
+    )
+)
+
+;; Submit feedback with comment
+;; #[allow(unchecked_data)]
+(define-public (submit-feedback (match-id uint) (rating uint) (comment (string-ascii 200)))
+    (let
+        (
+            (match (unwrap! (map-get? exchange-matches { match-id: match-id }) err-not-found))
+        )
+        (asserts! (or (is-eq tx-sender (get student-one match)) (is-eq tx-sender (get student-two match))) err-invalid-match)
+        (asserts! (<= rating u5) err-invalid-rating)
+        (asserts! (is-eq (get status match) "completed") err-invalid-status)
+        (map-set match-feedback
+            { match-id: match-id, student: tx-sender }
+            { rating: rating, feedback-given: true, comment: comment }
+        )
+        (ok true)
+    )
+)
+
+;; Block a student from matching
+;; #[allow(unchecked_data)]
+(define-public (block-student (student-to-block principal))
+    (begin
+        (asserts! (is-some (map-get? student-profiles { student: tx-sender })) err-not-found)
+        (map-set blocked-students
+            { student: tx-sender, blocked: student-to-block }
+            { blocked: true }
+        )
+        (ok true)
+    )
+)
+
+;; Unblock a student
+;; #[allow(unchecked_data)]
+(define-public (unblock-student (student-to-unblock principal))
+    (begin
+        (asserts! (is-some (map-get? student-profiles { student: tx-sender })) err-not-found)
+        (map-delete blocked-students { student: tx-sender, blocked: student-to-unblock })
+        (ok true)
+    )
+)
